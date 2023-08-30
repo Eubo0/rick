@@ -1,0 +1,2 @@
+# rick
+Rust interpreter / compiler
