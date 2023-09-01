@@ -19,7 +19,7 @@ fn main() {
     }
 
     error::set_source(args[1].clone());
-    error::set_loc(1, 1);
+    error::set_loc(1, 0);
 
     let mut scanner: Scanner = Scanner::new(args[1].clone());
     

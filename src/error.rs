@@ -1,17 +1,18 @@
 use std::sync::Mutex;
 
 // XXX: Using mutexes is inelegant. It is just to keep the compiler happy.
-static SOURCE_NAME: Mutex<String> = Mutex::new(String::new());
+pub static SOURCE_NAME: Mutex<String> = Mutex::new(String::new());
 
-static SOURCE_LINE: Mutex<u32> = Mutex::new(0);
-static SOURCE_COL: Mutex<u32> = Mutex::new(0);
+pub static SOURCE_LINE: Mutex<u32> = Mutex::new(0);
+pub static SOURCE_COL: Mutex<u32> = Mutex::new(0);
 
-static COLUMN_NUM: Mutex<u32> = Mutex::new(0);
+pub static COLUMN_NUM: Mutex<u32> = Mutex::new(0);
 
 pub enum RickError {
     UnclosedString,
-    NumberTooLarge,
+    NumberParseFailure,
     IllegalCharacter(u8),
+    IllegalEscapeCode(char),
     IdentifierTooLong,
     NonPrintableInString(u8),
 }
@@ -30,6 +31,10 @@ pub fn set_loc(line: u32, col: u32) {
     *SOURCE_COL.lock().unwrap() = col;
 }
 
+pub fn set_col(col: u32) {
+    *SOURCE_COL.lock().unwrap() = col;
+}
+
 pub fn save_loc() {
     *SOURCE_COL.lock().unwrap() = *COLUMN_NUM.lock().unwrap();
 }
@@ -38,7 +43,7 @@ pub fn set_source(filename: String) {
     *SOURCE_NAME.lock().unwrap() = filename;
 }
 
-pub fn report_err(reason: RickError) {
+pub fn report_err(reason: RickError) -> ! {
     match reason {
         RickError::UnclosedString => { eprintln!("rick: {}: {}:{} error: string not closed",
             SOURCE_NAME.lock().unwrap(),
@@ -46,7 +51,7 @@ pub fn report_err(reason: RickError) {
             SOURCE_COL.lock().unwrap());
         },
 
-        RickError::NumberTooLarge => { eprintln!("rick: {}: {}:{} error: number too large",
+        RickError::NumberParseFailure => { eprintln!("rick: {}: {}:{} error: failed to parse number literal",
             SOURCE_NAME.lock().unwrap(),
             SOURCE_LINE.lock().unwrap(),
             SOURCE_COL.lock().unwrap());
@@ -57,6 +62,13 @@ pub fn report_err(reason: RickError) {
             SOURCE_LINE.lock().unwrap(),
             SOURCE_COL.lock().unwrap(),
             d);
+        },
+
+        RickError::IllegalEscapeCode(c) => { eprintln!("rick: {}: {}:{} error: illegal escape code '\\{}' in string",
+            SOURCE_NAME.lock().unwrap(),
+            SOURCE_LINE.lock().unwrap(),
+            SOURCE_COL.lock().unwrap(),
+            c);
         },
 
         RickError::IdentifierTooLong => { eprintln!("rick: {}: {}:{} error: identifier too long",
@@ -76,4 +88,6 @@ pub fn report_err(reason: RickError) {
             eprintln!("Unreachable: Error message not yet implemented.");
         },
     }
+
+    std::process::exit(1);
 }
