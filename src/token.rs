@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
+    Eof,
     Identifier(String),
 
     // Literals start
@@ -45,7 +46,6 @@ pub enum Token {
     Comma,          // ' , '
     Semicolon,      // ' ; '
     Colon,          // ' : '
-    Quote,          // ' " '
     Negate,         // ' ! ' 
     
     ArrowLeft,      // ' <- '
@@ -113,6 +113,8 @@ impl Token {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
+            Token::Eof => write!(f, "EOF"),
+
             Token::Identifier(s) => write!(f, "{}", s),
             Token::StringLiteral(s) => write!(f, "{}", s),
             Token::IntegerLiteral(n) => write!(f, "{}", n),
@@ -146,7 +148,6 @@ impl fmt::Display for Token {
             Token::Comma => write!(f, ","),
             Token::Semicolon => write!(f, ";"),
             Token::Colon => write!(f, ":"),
-            Token::Quote => write!(f, "\""),
             Token::Negate => write!(f, "!"),
 
             Token::ArrowLeft => write!(f, "<-"),

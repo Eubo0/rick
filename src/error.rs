@@ -17,17 +17,21 @@ pub enum RickError {
 }
 
 pub fn inc_col() {
-    *SOURCE_COL.lock().unwrap() += 1;
+    *COLUMN_NUM.lock().unwrap() += 1;
 }
 
 pub fn inc_line() {
     *SOURCE_LINE.lock().unwrap() += 1;
-    *SOURCE_COL.lock().unwrap() = 1;
+    *COLUMN_NUM.lock().unwrap() = 1;
 }
 
 pub fn set_loc(line: u32, col: u32) {
     *SOURCE_LINE.lock().unwrap() = line;
     *SOURCE_COL.lock().unwrap() = col;
+}
+
+pub fn save_loc() {
+    *SOURCE_COL.lock().unwrap() = *COLUMN_NUM.lock().unwrap();
 }
 
 pub fn set_source(filename: String) {
@@ -36,19 +40,19 @@ pub fn set_source(filename: String) {
 
 pub fn report_err(reason: RickError) {
     match reason {
-        RickError::UnclosedString => { eprintln!("rick: {}: {}:{} error: String not closed",
+        RickError::UnclosedString => { eprintln!("rick: {}: {}:{} error: string not closed",
             SOURCE_NAME.lock().unwrap(),
             SOURCE_LINE.lock().unwrap(),
             SOURCE_COL.lock().unwrap());
         },
 
-        RickError::NumberTooLarge => { eprintln!("rick: {}: {}:{} error: Number too large",
+        RickError::NumberTooLarge => { eprintln!("rick: {}: {}:{} error: number too large",
             SOURCE_NAME.lock().unwrap(),
             SOURCE_LINE.lock().unwrap(),
             SOURCE_COL.lock().unwrap());
         },
 
-        RickError::IllegalCharacter(d) => { eprintln!("rick: {}: {}:{} error: Illegal character (ASCII #{})",
+        RickError::IllegalCharacter(d) => { eprintln!("rick: {}: {}:{} error: illegal character (ASCII #{})",
             SOURCE_NAME.lock().unwrap(),
             SOURCE_LINE.lock().unwrap(),
             SOURCE_COL.lock().unwrap(),
@@ -69,7 +73,7 @@ pub fn report_err(reason: RickError) {
         },
 
         _ => {
-            eprintln!("Unreachable: Error not yet implemented.");
+            eprintln!("Unreachable: Error message not yet implemented.");
         },
     }
 }
