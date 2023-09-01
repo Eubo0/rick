@@ -43,6 +43,13 @@ pub fn set_source(filename: String) {
     *SOURCE_NAME.lock().unwrap() = filename;
 }
 
+pub fn get_loc() -> (u32, u32) {
+    (
+        *SOURCE_LINE.lock().unwrap(),
+        *SOURCE_COL.lock().unwrap(),
+    )
+}
+
 pub fn report_err(reason: RickError) -> ! {
     match reason {
         RickError::UnclosedString => { eprintln!("rick: {}: {}:{} error: string not closed",

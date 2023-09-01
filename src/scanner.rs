@@ -12,8 +12,6 @@ pub struct Scanner {
     last_read: char,
 
     reserved_words: HashMap<String, Token>,
-
-    pub tok_stream: Vec<Token>,
 }
 
 impl Scanner {
@@ -46,24 +44,25 @@ impl Scanner {
         Scanner {
             source,
             idx: 0,
-            tok_stream: vec![],
             reserved_words,
             last_read: '\0',
         }
     }
 
-    pub fn scan_source(&mut self) {
-        let mut tok: Token = self.get_token();
+    pub fn scan_source(&mut self) -> Vec<(Token, (u32, u32))> {
+        let mut tok_stream: Vec<(Token, (u32, u32))> = vec![];
+        let mut tok: (Token, (u32, u32)) = self.get_token();
 
-        while tok != Token::Eof {
-            self.tok_stream.push(tok);
+        while tok.0 != Token::Eof {
+            tok_stream.push(tok);
             tok = self.get_token();
         }
-
-        self.tok_stream.push(tok);
+        tok_stream.push(tok);
+        
+        tok_stream
     }
 
-    fn get_token(&mut self) -> Token {
+    fn get_token(&mut self) -> (Token, (u32, u32)) {
         let mut output: Token = Token::Eof;
 
         self.skip_whitespace();
@@ -71,17 +70,17 @@ impl Scanner {
         error::save_loc();
         
         if self.is_eof() {
-            return output;
+            return (output, get_loc());
         }
 
         if matches!(self.ch(), 'A'..='Z' | 'a'..='z' | '_') {
-            return self.scan_word();
+            return (self.scan_word(),  get_loc());
 
         } else if matches!(self.ch(), '0'..='9') {
-            return self.scan_number();
+            return (self.scan_number(), get_loc());
 
         } else if self.ch() == '"' {
-            return self.scan_string();
+            return (self.scan_string(), get_loc());
 
         } else {
             match self.ch() {
@@ -126,7 +125,7 @@ impl Scanner {
                     if self.ch() == '=' {
                         output = Token::Neq;
                     } else {
-                        return Token::Negate;
+                        return (Token::Negate, get_loc());
                     }
                 },
 
@@ -140,7 +139,7 @@ impl Scanner {
                     } else if self.ch() == '>' {
                         output = Token::Concat;
                     } else {
-                        return Token::Lt;
+                        return (Token::Lt, get_loc());
                     }
                 },
 
@@ -154,7 +153,7 @@ impl Scanner {
                     if self.ch() == '>' {
                         output = Token::ArrowRight;
                     } else {
-                        return Token::Sub;
+                        return (Token::Sub, get_loc());
                     }
                 },
 
@@ -164,7 +163,7 @@ impl Scanner {
                     if self.ch() == '*' {
                         output = Token::Pow;
                     } else {
-                        return Token::Mul;
+                        return (Token::Mul, get_loc());
                     }
                 },
 
@@ -182,7 +181,7 @@ impl Scanner {
                     if self.ch() == '=' {
                         output = Token::Eq;
                     } else {
-                        return Token::Assign;
+                        return (Token::Assign, get_loc());
                     }
                 },
 
@@ -192,7 +191,7 @@ impl Scanner {
                     if self.ch() == '=' {
                         output = Token::Gte;
                     } else {
-                        return Token::Gt;
+                        return (Token::Gt, get_loc());
                     }
                 },
 
@@ -205,7 +204,7 @@ impl Scanner {
         }
 
 
-        output
+        (output, get_loc())
     }
 
     fn scan_string(&mut self) -> Token {
