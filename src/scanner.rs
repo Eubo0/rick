@@ -39,6 +39,7 @@ impl Scanner {
             ("print".into(), Token::Print),
             ("integer".into(), Token::Integer),
             ("float".into(), Token::Float),
+            ("string".into(), Token::String),
         ]);
 
         Scanner {

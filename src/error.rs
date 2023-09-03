@@ -1,5 +1,7 @@
 use std::sync::Mutex;
 
+use crate::token::*;
+
 // XXX: Using mutexes is inelegant. It is just to keep the compiler happy.
 pub static SOURCE_NAME: Mutex<String> = Mutex::new(String::new());
 
@@ -15,6 +17,9 @@ pub enum RickError {
     IllegalEscapeCode(char),
     IdentifierTooLong,
     NonPrintableInString(u8),
+    MalformedFuncdef(String),
+    Expected(Token, Token),
+    MissingTypeSpecifier,
 }
 
 pub fn inc_col() {
@@ -90,6 +95,27 @@ pub fn report_err(reason: RickError) -> ! {
             SOURCE_COL.lock().unwrap(),
             d);
         },
+
+        RickError::MalformedFuncdef(s) => { eprintln!("rick: {}: {}:{} error: malformed funcdef: {}",
+            SOURCE_NAME.lock().unwrap(),
+            SOURCE_LINE.lock().unwrap(),
+            SOURCE_COL.lock().unwrap(),
+            s);
+        },
+
+        RickError::Expected(found, expected) => { eprintln!("rick: {}: {}:{} error: expected '{}', found'{}'",
+            SOURCE_NAME.lock().unwrap(),
+            SOURCE_LINE.lock().unwrap(),
+            SOURCE_COL.lock().unwrap(),
+            expected,
+            found);
+        },
+
+        RickError::MissingTypeSpecifier => { eprintln!("rick: {}: {}:{} error: expected type specifier",
+            SOURCE_NAME.lock().unwrap(),
+            SOURCE_LINE.lock().unwrap(),
+            SOURCE_COL.lock().unwrap());
+        }
 
         _ => {
             eprintln!("Unreachable: Error message not yet implemented.");

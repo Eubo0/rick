@@ -33,6 +33,7 @@ pub enum Token {
     Integer,        // "int"
     Float,          // "float"
     Boolean,        // "bool"
+    String,         // "string"
     
     // Reserved words end
 
@@ -92,7 +93,7 @@ impl Token {
     }
 
     pub fn is_type_start(&self) -> bool {
-        matches!(self, Token::Integer | Token::Float | Token::Boolean)
+        matches!(self, Token::Integer | Token::Float | Token::Boolean | Token::String)
     }
 
     pub fn starts_factor(&self) -> bool {
@@ -137,6 +138,7 @@ impl fmt::Display for Token {
             Token::Integer => write!(f, "integer"),
             Token::Float => write!(f, "float"),
             Token::Boolean => write!(f, "boolean"),
+            Token::String => write!(f, "string"),
 
             Token::Lpar => write!(f, "("),
             Token::Rpar => write!(f, ")"),

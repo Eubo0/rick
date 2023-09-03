@@ -6,6 +6,9 @@ mod token;
 mod scanner;
 use scanner::*;
 
+mod parser;
+use parser::*;
+
 mod error;
 use error::*;
 
@@ -23,7 +26,9 @@ fn main() {
 
     let mut scanner: Scanner = Scanner::new(args[1].clone());
     
-    scanner.scan_source();
+    let tokens = scanner.scan_source();
 
-    println!("{:#?}", scanner.tok_stream);
+    let mut parser: Parser = Parser::new(tokens);
+
+    parser.parse_tok_stream();
 }
