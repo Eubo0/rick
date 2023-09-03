@@ -2,23 +2,7 @@ use std::collections::HashMap;
 
 use crate::{error, error::*};
 use crate::token::*;
-
-const NONE: usize = 0;
-const BOOLEAN: usize = 1;
-const INTEGER: usize = 2;
-const FLOAT: usize = 3;
-const STRING: usize = 4;
-const ARRAY: usize = 5;
-const FUNC: usize = 6;
-
-// XXX: this looks useful
-// type tipe = [bool; 7];
-#[derive(Debug, Clone)]
-pub struct Properties {
-    tipe: [bool; 7],
-
-    params: Vec<(String, [bool; 7])>,
-}
+use crate::properties::*;
 
 pub struct Parser {
     tokens: Vec<(Token, (u32, u32))>,
@@ -39,7 +23,7 @@ impl Parser {
 
     // XXX: This is a 2-pass "compiler"
     // I don't want to forward declare things.
-    // I'm not as good at language design as his worshipfulness.
+    // I'm not as good at language design as His Worshipfulness.
     pub fn parse_tok_stream(&mut self) {
         self.parse_func_signatures();   // Pass 1
         self.idx = 0;
@@ -60,13 +44,12 @@ impl Parser {
 
     }
 
-    fn parse_func_type_info(&mut self) {
+    fn parse_func_type_info(&mut self) {  
         let mut name: String = String::new();
         let mut args: Vec<(String, [bool; 7])> = vec![];
-        let mut ret_type: [bool; 7] = [true, false, false, false, false, false, false];
+        let mut ret_type: [bool; 7] = [true, false, false, false, false, false, true];
 
         self.next_token();
-
 
         self.expect_identifier(&mut name);
 
@@ -95,6 +78,7 @@ impl Parser {
 
         if self.current().0.is_type_start() {
             ret_type = self.parse_type();
+            ret_type[FUNC] = true;
         }
 
         let props: Properties = Properties {

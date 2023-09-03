@@ -12,6 +12,8 @@ use parser::*;
 mod error;
 use error::*;
 
+mod properties;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
