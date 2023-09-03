@@ -41,9 +41,173 @@ impl Parser {
     }
 
     fn parse_program(&mut self) {
+        while self.current().0 != Token::Eof {
+            match self.current().0 {
+                Token::Func => {
+                    self.parse_subdef();
+                },
+                _ => {
+                    panic!("ERROR: unimplemented top level statement.");
+                }
+            }
+        }
+    }
+
+    fn parse_subdef(&mut self) {
+        // TODO: I'm exploiting the fact that the first pass has already collected the 
+        //      function signature. I should probably do something better than skipping 
+        //      to the closing parentheses.
+
+        while self.current().0 != Token::Rpar {
+            self.next_token();
+        }
+        self.next_token();
+
+        if self.current().0.is_type_start() {
+            self.parse_type();
+        }
+        self.parse_statement();
+    }
+
+    fn parse_statement(&mut self) {
+        match self.current().0 {
+            Token::Lbrace => {
+                self.parse_block();
+            },
+            Token::If => {
+                self.parse_if();
+            },
+            Token::While => {
+                self.parse_while();
+            },
+            Token::Let => {
+                self.parse_assign();
+                self.expect(Token::Semicolon);
+            },
+            Token::Var => {
+                self.parse_vardef();
+                self.expect(Token::Semicolon);
+            },
+            Token::Identifier(_) => {
+                self.parse_call();
+                self.expect(Token::Semicolon);
+            },
+            Token::Read => {
+                self.parse_read();
+                self.expect(Token::Semicolon);
+            },
+            Token::Print => {
+                self.parse_print();
+                self.expect(Token::Semicolon);
+            },
+            Token::Return => {
+                self.parse_return();
+                self.expect(Token::Semicolon);
+            },
+            _ => {
+                // TODO: implement proper error message
+                panic!("Expected statement");
+            },
+        }
+    }
+
+    fn parse_block(&mut self) {
+        self.expect(Token::Lbrace);
+
+        while self.current().0 != Token::Rbrace {
+            self.parse_statement();
+        }
+
+        self.expect(Token::Rbrace);
+    }
+
+    fn parse_if(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_while(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_assign(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_vardef(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_call(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_read(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_print(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_return(&mut self) {
+        unimplemented!()
+    }
+
+    fn parse_expr(&mut self) {
+        unimplemented!()   
+    }
+
+    fn parse_simple(&mut self) {
 
     }
 
+    fn parse_term(&mut self) {
+
+    }
+
+    fn parse_factor(&mut self) {
+        // base { '**' base}
+    }
+
+    fn parse_base(&mut self) {
+        match self.current().0 {
+            Token::Identifier(_) => {
+
+            },
+            Token::FloatLiteral(_) => {
+
+            },
+            Token::IntegerLiteral(_) => {
+
+            },
+            Token::StringLiteral(_) => {
+
+            },
+            Token::Lpar => {
+
+            },
+            Token::Negate => {
+
+            },
+            Token::True => {
+
+            },
+            Token::False => {
+
+            },
+
+            _ => {
+                // TODO: proper error reporting
+                panic!("ERROR: expected valid expression base!");
+            }
+        }
+    }
+
+
+
+// #######################################################################
+// ####################### UTILITY FUNCTIONS #############################
+// #######################################################################
     fn parse_func_type_info(&mut self) {  
         let mut name: String = String::new();
         let mut args: Vec<(String, [bool; 7])> = vec![];

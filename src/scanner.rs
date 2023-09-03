@@ -40,6 +40,7 @@ impl Scanner {
             ("integer".into(), Token::Integer),
             ("float".into(), Token::Float),
             ("string".into(), Token::String),
+            ("var".into(), Token::Var),
         ]);
 
         Scanner {

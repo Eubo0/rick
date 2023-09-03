@@ -34,6 +34,7 @@ pub enum Token {
     Float,          // "float"
     Boolean,        // "bool"
     String,         // "string"
+    Var,            // "var"
     
     // Reserved words end
 
@@ -139,6 +140,7 @@ impl fmt::Display for Token {
             Token::Float => write!(f, "float"),
             Token::Boolean => write!(f, "boolean"),
             Token::String => write!(f, "string"),
+            Token::Var => write!(f, "var"),
 
             Token::Lpar => write!(f, "("),
             Token::Rpar => write!(f, ")"),
