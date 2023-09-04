@@ -9,6 +9,8 @@ pub struct Parser {
 
     symboltable: HashMap<String, Properties>,
 
+    current_ret_type: u8,
+
     idx: usize,
 }
 
@@ -17,6 +19,7 @@ impl Parser {
         Parser {
             tokens,
             symboltable: HashMap::new(),
+            current_ret_type: NONE,
             idx: 0,
         }
     }
@@ -57,16 +60,21 @@ impl Parser {
         // TODO: I'm exploiting the fact that the first pass has already collected the 
         //      function signature. I should probably do something better than skipping 
         //      to the closing parentheses.
-
+    
         while self.current().0 != Token::Rpar {
             self.next_token();
         }
         self.next_token();
 
         if self.current().0.is_type_start() {
-            self.parse_type();
+            self.current_ret_type = self.parse_type();
+        } else {
+            self.current_ret_type = NONE;
         }
+        
         self.parse_statement();
+
+        self.current_ret_type = NONE;
     }
 
     fn parse_statement(&mut self) {
@@ -150,50 +158,96 @@ impl Parser {
     }
 
     fn parse_return(&mut self) {
-        unimplemented!()
+        let mut expr_type: u8 = NONE;
+
+        self.expect(Token::Return);
+
+        if self.current().0.start_expression() {
+            self.parse_expr(&mut expr_type);
+        }
     }
 
-    fn parse_expr(&mut self) {
-        unimplemented!()   
+    fn parse_expr(&mut self, parent_type: &mut u8) {
+        let mut rhs: u8 = NONE;
+
+        self.parse_simple(parent_type);
+
+        if self.current().0.is_relational_op() {
+            self.next_token();
+
+            self.parse_expr(&mut rhs);
+        }
     }
 
-    fn parse_simple(&mut self) {
+    fn parse_simple(&mut self, parent_type: &mut u8) {
+        let mut rhs: u8 = NONE;
 
+        self.parse_term(parent_type);
+
+        while self.current().0.is_additive_op() {
+            self.next_token();
+
+            self.parse_term(&mut rhs);
+        }
     }
 
-    fn parse_term(&mut self) {
+    fn parse_term(&mut self, parent_type: &mut u8) {
+        let mut rhs: u8 = NONE;
 
+        self.parse_factor(parent_type);
+
+        while self.current().0.is_multiplicative_op() {
+            self.next_token();
+
+            self.parse_factor(&mut rhs);
+        }
     }
 
-    fn parse_factor(&mut self) {
-        // base { '**' base}
+    fn parse_factor(&mut self, parent_type: &mut u8) {
+        let mut rhs: u8 = NONE;
+
+        self.parse_base(parent_type);
+
+        while self.current().0.is_exponent_op() {
+            self.next_token();
+
+            self.parse_base(&mut rhs);
+        }
     }
 
-    fn parse_base(&mut self) {
+    fn parse_base(&mut self, parent_type: &mut u8) {
         match self.current().0 {
             Token::Identifier(_) => {
-
+                unimplemented!()
             },
             Token::FloatLiteral(_) => {
-
+                self.next_token();
+                *parent_type = FLOAT;
             },
             Token::IntegerLiteral(_) => {
-
+                self.next_token();
+                *parent_type = INTEGER;
             },
             Token::StringLiteral(_) => {
-
+                self.next_token();
+                *parent_type = STRING;
             },
             Token::Lpar => {
-
+                self.next_token();
+                self.parse_expr(parent_type);
+                self.expect(Token::Rpar);
             },
             Token::Negate => {
-
+                self.next_token();
+                self.parse_base(parent_type);
             },
             Token::True => {
-
+                self.next_token();
+                *parent_type = BOOLEAN;
             },
             Token::False => {
-
+                self.next_token();
+                *parent_type = BOOLEAN;
             },
 
             _ => {
@@ -210,8 +264,8 @@ impl Parser {
 // #######################################################################
     fn parse_func_type_info(&mut self) {  
         let mut name: String = String::new();
-        let mut args: Vec<(String, [bool; 7])> = vec![];
-        let mut ret_type: [bool; 7] = [true, false, false, false, false, false, true];
+        let mut args: Vec<(String, u8)> = vec![];
+        let mut ret_type: u8 = NONE;
 
         self.next_token();
 
@@ -220,7 +274,7 @@ impl Parser {
         self.expect(Token::Lpar);
 
         if self.current().0.is_type_start() {
-            let mut t: [bool; 7] = self.parse_type();
+            let mut t: u8 = self.parse_type();
             
             let mut id: String = String::new();
             self.expect_identifier(&mut id);
@@ -242,7 +296,7 @@ impl Parser {
 
         if self.current().0.is_type_start() {
             ret_type = self.parse_type();
-            ret_type[FUNC] = true;
+            ret_type |= FUNC;
         }
 
         let props: Properties = Properties {
@@ -253,8 +307,8 @@ impl Parser {
         self.symboltable.insert(name, props);
     }
 
-    fn parse_type(&mut self) -> [bool; 7] {
-        let mut output: [bool; 7] = [false; 7];
+    fn parse_type(&mut self) -> u8 {
+        let mut output: u8 = NONE;
         
         if !self.current().0.is_type_start() {
             let (line, col) = self.current().1;
@@ -264,16 +318,16 @@ impl Parser {
 
         match self.current().0 {
             Token::Integer => {
-                output[INTEGER] = true;
+                output |= INTEGER;
             },
             Token::Float => {
-                output[FLOAT] = true;
+                output |= FLOAT;
             },
             Token::Boolean => {
-                output[BOOLEAN] = true;
+                output |= BOOLEAN;
             },
             Token::String => {
-                output[STRING] = true;
+                output |= STRING;
             }
             _ => {
                 panic!("Unreachable!");
@@ -283,7 +337,7 @@ impl Parser {
         self.next_token();
 
         if self.current().0 == Token::Array {
-            output[ARRAY] = true;
+            output |= ARRAY;
             self.next_token();
         }
 
