@@ -9,6 +9,8 @@ pub struct Parser {
 
     symboltable: HashMap<String, Properties>,
 
+    local_table: HashMap<String, Properties>,
+
     current_ret_type: u8,
 
     idx: usize,
@@ -19,6 +21,7 @@ impl Parser {
         Parser {
             tokens,
             symboltable: HashMap::new(),
+            local_table: HashMap::new(),
             current_ret_type: NONE,
             idx: 0,
         }
@@ -60,7 +63,11 @@ impl Parser {
         // TODO: I'm exploiting the fact that the first pass has already collected the 
         //      function signature. I should probably do something better than skipping 
         //      to the closing parentheses.
-    
+        self.next_token();
+
+        let mut name: String = String::new();
+        self.expect_identifier(&mut name);
+        
         while self.current().0 != Token::Rpar {
             self.next_token();
         }
@@ -71,7 +78,15 @@ impl Parser {
         } else {
             self.current_ret_type = NONE;
         }
+
+        // TODO: proper error reporting
+        let props = self.symboltable.get(&name).expect("Function not found!");
         
+        self.local_table.drain();
+        for (name, tipe) in &props.params {
+            self.local_table.insert(name.clone(), Properties{ tipe: *tipe, offset: self.local_table.len() as i32, params: vec![] });    
+        }
+
         self.parse_statement();
 
         self.current_ret_type = NONE;
@@ -121,10 +136,14 @@ impl Parser {
 
     fn parse_block(&mut self) {
         self.expect(Token::Lbrace);
+        let local_size: i32 = self.local_table.len() as i32;
 
         while self.current().0 != Token::Rbrace {
             self.parse_statement();
         }
+
+        // XXX: this is important for scoping of variables
+        self.local_table.retain(|_, p| p.offset < local_size);
 
         self.expect(Token::Rbrace);
     }
@@ -142,7 +161,30 @@ impl Parser {
     }
 
     fn parse_vardef(&mut self) {
-        unimplemented!()
+        let mut id: String = String::new(); 
+        let mut tipe: u8 = NONE;
+
+        self.expect(Token::Var);
+
+        tipe = self.parse_type();
+
+        self.expect_identifier(&mut id);
+
+        if self.local_table.insert(id.clone(), Properties {tipe, offset: self.local_table.len() as i32, params: vec![]}).is_some() {
+            // TODO: better error reporting
+            panic!("Error: Multiple definition of local variable.");
+        }
+
+        while self.current().0 == Token::Comma {
+            self.next_token();
+            self.expect_identifier(&mut id);
+
+            if self.local_table.insert(id.clone(), Properties {tipe, offset: self.local_table.len() as i32, params: vec![]}).is_some() {
+                // TODO: better error reporting
+                panic!("Error: Multiple definition of local variable.");
+            }
+        }
+
     }
 
     fn parse_call(&mut self) {
@@ -164,6 +206,14 @@ impl Parser {
 
         if self.current().0.start_expression() {
             self.parse_expr(&mut expr_type);
+            if expr_type != self.current_ret_type {
+                // TODO: Proper error reporting
+                panic!("ERROR: incorrect type for return expression.");
+            }
+
+        } else if self.current_ret_type != NONE {
+            // TODO: Proper error reporting
+            panic!("ERROR: return statement missing an expression.")
         }
     }
 
@@ -218,7 +268,18 @@ impl Parser {
     fn parse_base(&mut self, parent_type: &mut u8) {
         match self.current().0 {
             Token::Identifier(_) => {
-                unimplemented!()
+                let mut id: String = String::new();
+                self.expect_identifier(&mut id);
+
+                if self.current().0 == Token::Lpar {
+
+                } else if self.current().0 == Token::Lbrack {
+
+                } else {
+                    // TODO: better error reporting
+                    let props = self.local_table.get(&id).expect("Variable does not exist!");
+                    *parent_type = props.tipe;
+                }
             },
             Token::FloatLiteral(_) => {
                 self.next_token();
@@ -301,6 +362,7 @@ impl Parser {
 
         let props: Properties = Properties {
             tipe: ret_type,
+            offset: -1,
             params: args,
         };
 

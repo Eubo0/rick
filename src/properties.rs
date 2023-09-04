@@ -23,12 +23,19 @@ pub const FUNC: u8 = 32;
 #[derive(Debug, Clone)]
 pub struct Properties {
     pub tipe: u8,
+    pub offset: i32,
 
     pub params: Vec<(String, u8)>,
 }
 
 impl fmt::Display for Properties {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), std::fmt::Error> {
+
+        if self.offset != -1 {
+            write!(f, "@{} ", self.offset)?;
+        } else {
+            write!(f, "@_ ")?;
+        }
 
         if self.tipe & FUNC != 0 {
             // callable

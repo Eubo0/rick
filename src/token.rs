@@ -97,14 +97,14 @@ impl Token {
         matches!(self, Token::Integer | Token::Float | Token::Boolean | Token::String)
     }
 
-    pub fn starts_factor(&self) -> bool {
+    pub fn starts_base(&self) -> bool {
         matches!(self, Token::Identifier(_) | Token::IntegerLiteral(_) 
-                | Token::FloatLiteral(_) | Token::True | Token::False
-                | Token::Lpar | Token::Negate)
+                | Token::FloatLiteral(_) | Token::StringLiteral(_) | Token::True 
+                | Token::False | Token::Lpar | Token::Negate)
     }
 
     pub fn start_expression(&self) -> bool {
-        if self.starts_factor() || matches!(self, Token::Sub) {
+        if self.starts_base() || matches!(self, Token::Sub) {
             true
         } else {
             false
