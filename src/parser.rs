@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{error, error::*};
 use crate::token::*;
-use crate::properties::*;
+use crate::{properties, properties::*};
 
 pub struct Parser {
     tokens: Vec<(Token, (u32, u32))>,
@@ -149,15 +149,92 @@ impl Parser {
     }
 
     fn parse_if(&mut self) {
-        unimplemented!()
+        let mut cond_type: u8 = NONE;
+
+        self.expect(Token::If);
+
+        self.parse_expr(&mut cond_type);
+        if cond_type != BOOLEAN {
+            panic!("Expected boolean, found {} for if condition", type_string(cond_type));
+        }
+
+        self.parse_block();
+
+        while self.current().0 == Token::Elif {
+            self.next_token();
+            self.parse_expr(&mut cond_type);
+            if cond_type != BOOLEAN {
+                panic!("Expected boolean, found {} for elif condition", type_string(cond_type));
+            }
+            self.parse_block();
+        }
+
+        if self.current().0 == Token::Else {
+            self.next_token();
+            self.parse_block();
+        }
     }
 
     fn parse_while(&mut self) {
-        unimplemented!()
+        let mut cond_type: u8 = NONE;
+        
+        self.expect(Token::While);
+
+        self.parse_expr(&mut cond_type);
+        if cond_type != BOOLEAN {
+            panic!("Expected boolean, found {} for while condition", type_string(cond_type));
+        }
+
+        self.parse_block();
     }
 
     fn parse_assign(&mut self) {
-        unimplemented!()
+        let mut name: String = String::new();
+        let mut props: Properties;
+        let mut tipe: u8;
+
+        self.expect(Token::Let);
+
+        self.expect_identifier(&mut name);
+
+        // TODO: better error reporting
+        props = self.local_table.get(&name).expect("Undefined variable").clone();
+        tipe = props.tipe;
+
+        if self.current().0 == Token::Lbrack {
+            if tipe | ARRAY == 0 {
+                // TODO: better error reporting
+                panic!("Cannot index non-array type");
+            }
+
+            self.parse_index();
+
+            tipe ^= ARRAY;
+        }
+
+        self.expect(Token::Assign);
+
+        let mut rhs: u8 = NONE;
+
+        if self.current().0 == Token::Array {
+            if tipe | ARRAY == 0 {
+                // TODO: better error reporting
+                panic!("Can't assign array to non-array variable");
+            }
+            self.next_token();
+
+            let mut simp_type: u8 = NONE;
+            self.parse_simple(&mut simp_type);
+
+            rhs = simp_type | ARRAY;
+        } else {
+            self.parse_expr(&mut rhs);
+        }
+
+        if rhs != tipe {
+            // TODO: better error reporting
+            panic!("Type mismatch in assignment.");
+        }
     }
 
     fn parse_vardef(&mut self) {
@@ -187,16 +264,83 @@ impl Parser {
 
     }
 
+    fn parse_index(&mut self) {
+        let mut index_type: u8 = NONE;
+        self.expect(Token::Lbrack);
+
+        self.parse_simple(&mut index_type);
+
+        if index_type != INTEGER {
+            // TODO: better error reporting
+            panic!("Invalid index value");
+        }
+
+        self.expect(Token::Rbrack);
+    }
+
     fn parse_call(&mut self) {
-        unimplemented!()
+        let mut id: String = String::new();
+        self.expect_identifier(&mut id);
+
+        if !self.symboltable.contains_key(&id) {
+            // TODO: better error reporting
+            panic!("Identifier '{}' does not exist as a function", id);
+        }
+
+        let props = self.symboltable.get(&id).unwrap().clone();
+        if props.tipe & !FUNC != 0 {
+            // TODO: better error reporting
+            panic!("'{}' is not a procedure", id);
+        }
+
+        self.parse_arglist(props, id);
     }
 
     fn parse_read(&mut self) {
-        unimplemented!()
+        let mut id: String = String::new();
+
+        self.expect(Token::Read);
+        self.expect(Token::Lpar);
+
+        self.expect_identifier(&mut id);
+
+        // TODO: better error reporting
+        let props = self.local_table.get(&id).expect("Variable doesnt exist!");
+
+        if self.current().0 == Token::Lbrack {
+            if props.tipe & ARRAY == 0 {
+                // TODO: proper error reporting
+                panic!("Not an array!");
+            }
+            self.parse_index();
+        
+        } else {
+            if props.tipe & ARRAY != 0 {
+                // TODO: better error reporting
+                panic!("Index array before reading input");
+            }
+            // TODO: 'get' variable with id 
+        }
+
+        self.expect(Token::Rpar);
     }
 
     fn parse_print(&mut self) {
-        unimplemented!()
+        let mut expr_type: u8 = NONE;
+
+        self.expect(Token::Print);
+        self.expect(Token::Lpar);
+
+        loop {
+            self.parse_expr(&mut expr_type);
+
+            if self.current().0 != Token::Concat {
+                break;
+            }
+            self.next_token();
+        }
+
+        self.expect(Token::Rpar);
     }
 
     fn parse_return(&mut self) {
@@ -222,10 +366,25 @@ impl Parser {
 
         self.parse_simple(parent_type);
 
+        if self.current().0.is_ordering_op() {
+            if !is_numeric_type(*parent_type) {
+                panic!("Expected numeric type, found {}", type_string(*parent_type));
+            }
+        }
+
         if self.current().0.is_relational_op() {
             self.next_token();
 
             self.parse_expr(&mut rhs);
+
+            if is_numeric_type(*parent_type) && !is_numeric_type(rhs) {
+                panic!("Expected numeric type, found {} type", type_string(rhs));
+            } 
+            if !is_numeric_type(*parent_type) && *parent_type != rhs {
+                panic!("Expected {} type, found {} type", type_string(*parent_type), type_string(rhs));
+            }
+
+            *parent_type = BOOLEAN;
         }
     }
 
@@ -234,10 +393,20 @@ impl Parser {
 
         self.parse_term(parent_type);
 
+        if self.current().0 == Token::Or {
+            if *parent_type != BOOLEAN {
+                panic!("Expected boolean type, found {}", type_string(*parent_type));
+            }
+        }
+
         while self.current().0.is_additive_op() {
             self.next_token();
 
             self.parse_term(&mut rhs);
+
+            if *parent_type != rhs {
+                panic!("Expected {} type, found {} type", type_string(*parent_type), type_string(rhs));
+            }
         }
     }
 
@@ -246,10 +415,22 @@ impl Parser {
 
         self.parse_factor(parent_type);
 
+        if self.current().0 == Token::And {
+            if *parent_type != BOOLEAN {
+                // TODO: better error reporting
+                panic!("Expected boolean type, found {} type", type_string(*parent_type));
+            }
+        }
+
         while self.current().0.is_multiplicative_op() {
             self.next_token();
 
             self.parse_factor(&mut rhs);
+
+            if rhs != *parent_type {
+                // TODO: better error reporting
+                panic!("Expected {} type, found {} type", type_string(*parent_type), type_string(rhs));
+            }
         }
     }
 
@@ -258,10 +439,19 @@ impl Parser {
 
         self.parse_base(parent_type);
 
+        if self.current().0.is_exponent_op() {
+            if parent_type != &INTEGER {
+                panic!("Expected {} type, found {} type", type_string(INTEGER), type_string(*parent_type));
+            }
+        }
+
         while self.current().0.is_exponent_op() {
             self.next_token();
 
             self.parse_base(&mut rhs);
+            if rhs != INTEGER {
+                panic!("Expected {} type, found {} type", type_string(INTEGER), type_string(rhs));
+            }
         }
     }
 
@@ -272,12 +462,28 @@ impl Parser {
                 self.expect_identifier(&mut id);
 
                 if self.current().0 == Token::Lpar {
+                    // TODO: proper error reportings
+                    let props = self.symboltable.get(&id).expect("Variable does not exist!").clone();
+                    let tipe = props.tipe;
+                    if props.tipe & FUNC == 0 {
+                        // TODO: better error reporting
+                        panic!("{} is not a callable", id);
+                    }
+                    self.parse_arglist(props, id);
+                    *parent_type = tipe & !FUNC;
 
                 } else if self.current().0 == Token::Lbrack {
+                    let props = self.local_table.get(&id).expect("Variable does not exist!").clone();
+                    if props.tipe & ARRAY == 0 {
+                        // TODO: proper error reporting
+                        panic!("Trying to index non-array '{}'", id);
+                    }
+                    self.parse_index();
+                    *parent_type = props.tipe & !ARRAY;
 
                 } else {
+                    let props = self.local_table.get(&id).expect("Variable does not exist!").clone();
                     // TODO: better error reporting
-                    let props = self.local_table.get(&id).expect("Variable does not exist!");
                     *parent_type = props.tipe;
                 }
             },
@@ -318,6 +524,46 @@ impl Parser {
         }
     }
 
+
+    fn parse_arglist(&mut self, props: Properties, id: String) {
+        let mut i: usize = 0;
+        self.expect(Token::Lpar);
+
+        if self.current().0.start_expression() {
+            let mut expr_type: u8 = NONE;
+            self.parse_expr(&mut expr_type);
+            if i + 1 > props.params.len() {
+                // TODO: proper error reporting
+                panic!("Too many arguments for {}", id);
+            }
+            if expr_type != props.params[i].1 {
+                // TODO: proper error reporting
+                panic!("Type mismatch for argument {} of {}", i, id);
+            }
+
+            i += 1;
+            
+            while self.current().0 == Token::Comma {
+                let mut expr_type: u8 = NONE;
+                self.next_token();
+                self.parse_expr(&mut expr_type);
+                if i + 1 > props.params.len() {
+                    // TODO: proper error reporting
+                    panic!("Too many arguments for {}", id);
+                }
+                if expr_type != props.params[i].1 {
+                    // TODO: proper error reporting
+                    panic!("Type mismatch for argument {} of {}", i, id);
+                }
+            }
+        }
+
+        if i < props.params.len() {
+            panic!("Too few arguments to {}", id);
+        }
+
+        self.expect(Token::Rpar);
+    }
 
 
 // #######################################################################
