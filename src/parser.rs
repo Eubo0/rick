@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::{error, error::*};
 use crate::token::*;
 use crate::{properties, properties::*};
+use crate::ast::*;
 
 pub struct Parser {
     tokens: Vec<(Token, (u32, u32))>,
@@ -47,22 +48,29 @@ impl Parser {
     }
 
     fn parse_program(&mut self) {
+        let mut top_level: Vec<Box<ASTNode>> = vec![];
+
         while self.current().0 != Token::Eof {
             match self.current().0 {
                 Token::Func => {
-                    self.parse_subdef();
+                    top_level.push(Box::new(self.parse_subdef()));
                 },
                 _ => {
                     panic!("ERROR: unimplemented top level statement.");
                 }
             }
         }
+
+        let t: ASTNode = ASTNode::Toplevel{ funcdefs: top_level };
+
+        println!("{:#?}", t);
     }
 
-    fn parse_subdef(&mut self) {
+    fn parse_subdef(&mut self) -> ASTNode {
         // TODO: I'm exploiting the fact that the first pass has already collected the 
         //      function signature. I should probably do something better than skipping 
         //      to the closing parentheses.
+        
         self.next_token();
 
         let mut name: String = String::new();
@@ -80,115 +88,175 @@ impl Parser {
         }
 
         // TODO: proper error reporting
-        let props = self.symboltable.get(&name).expect("Function not found!");
+        let props = self.symboltable.get(&name).expect("Function not found!").clone();
         
         self.local_table.drain();
         for (name, tipe) in &props.params {
             self.local_table.insert(name.clone(), Properties{ tipe: *tipe, offset: self.local_table.len() as i32, params: vec![] });    
         }
 
-        self.parse_statement();
+        let body: ASTNode = self.parse_statement();
 
         self.current_ret_type = NONE;
+
+        ASTNode::Funcdef {
+            name,
+            params: props.params,
+            ret_type: props.tipe,
+            body: Box::new(body),
+        }
     }
 
-    fn parse_statement(&mut self) {
+    fn parse_statement(&mut self) -> ASTNode {
         match self.current().0 {
             Token::Lbrace => {
-                self.parse_block();
+                let block: ASTNode = self.parse_block();
+                return block;
             },
             Token::If => {
-                self.parse_if();
+                let if_statement: ASTNode = self.parse_if();
+                return if_statement;
             },
             Token::While => {
-                self.parse_while();
+                let while_statement: ASTNode = self.parse_while();
+                return while_statement;
             },
             Token::Let => {
-                self.parse_assign();
+                let assign_statement: ASTNode = self.parse_assign();
                 self.expect(Token::Semicolon);
+
+                return assign_statement;
             },
             Token::Var => {
-                self.parse_vardef();
+                let vardef_statement = self.parse_vardef();
                 self.expect(Token::Semicolon);
+
+                return vardef_statement;
             },
             Token::Identifier(_) => {
-                self.parse_call();
+                let call_statement: ASTNode = self.parse_call();
                 self.expect(Token::Semicolon);
+
+                return call_statement;
             },
             Token::Read => {
-                self.parse_read();
+                let read_statement: ASTNode = self.parse_read();
                 self.expect(Token::Semicolon);
+
+                return read_statement;
             },
             Token::Print => {
-                self.parse_print();
+                let print_statement: ASTNode = self.parse_print();
                 self.expect(Token::Semicolon);
+
+                return print_statement;
             },
             Token::Return => {
-                self.parse_return();
+                let return_statement: ASTNode = self.parse_return();
                 self.expect(Token::Semicolon);
+
+                return return_statement;
             },
             _ => {
                 // TODO: implement proper error message
                 panic!("Expected statement");
             },
         }
+
+        // ASTNode::Value{val: Value::Integer(69)}
     }
 
-    fn parse_block(&mut self) {
+    fn parse_block(&mut self) -> ASTNode {
+        let mut stats: Vec<Box<ASTNode>> = vec![];
+
         self.expect(Token::Lbrace);
         let local_size: i32 = self.local_table.len() as i32;
 
         while self.current().0 != Token::Rbrace {
-            self.parse_statement();
+            stats.push( Box::new(self.parse_statement()) );
         }
 
         // XXX: this is important for scoping of variables
         self.local_table.retain(|_, p| p.offset < local_size);
 
         self.expect(Token::Rbrace);
+
+        ASTNode::Block {
+            statements: stats,
+        }
     }
 
-    fn parse_if(&mut self) {
+    fn parse_if(&mut self) -> ASTNode {
+        let cond: Box<ASTNode>;
+        let first_stat: Box<ASTNode>;
+
+        let mut elif_branches: Vec<(Box<ASTNode>, Box<ASTNode>)> = vec![];
+        let mut else_case: Option<Box<ASTNode>> = None;
+
         let mut cond_type: u8 = NONE;
 
         self.expect(Token::If);
 
         self.parse_expr(&mut cond_type);
+        cond = Box::new(ASTNode::Value{ val: Value::String("condition".into())} );
+
         if cond_type != BOOLEAN {
             panic!("Expected boolean, found {} for if condition", type_string(cond_type));
         }
 
-        self.parse_block();
+        first_stat = Box::new(self.parse_statement());
 
         while self.current().0 == Token::Elif {
+            let else_cond: Box<ASTNode>;
+            let else_stat: Box<ASTNode>;
+
             self.next_token();
-            self.parse_expr(&mut cond_type);
+/* else_cond = */ self.parse_expr(&mut cond_type);
+            else_cond = Box::new(ASTNode::Value{ val: Value::String("condition".into())} );
+
             if cond_type != BOOLEAN {
                 panic!("Expected boolean, found {} for elif condition", type_string(cond_type));
             }
-            self.parse_block();
+            else_stat = Box::new(self.parse_statement());
+
+            elif_branches.push((else_cond, else_stat));
         }
 
         if self.current().0 == Token::Else {
             self.next_token();
-            self.parse_block();
+            else_case = Some(Box::new(self.parse_statement()));
+        }
+
+        ASTNode::If {
+            first_condition: cond,
+            first_statement: first_stat,
+            elif_branches,
+            else_case,
         }
     }
 
-    fn parse_while(&mut self) {
+    fn parse_while(&mut self) -> ASTNode {
+        let expr: Box<ASTNode>;
+        let stat: Box<ASTNode>;
         let mut cond_type: u8 = NONE;
         
         self.expect(Token::While);
 
         self.parse_expr(&mut cond_type);
+        expr = Box::new(ASTNode::Value{ val: Value::String("expression".into()) });
         if cond_type != BOOLEAN {
             panic!("Expected boolean, found {} for while condition", type_string(cond_type));
         }
 
-        self.parse_block();
+        stat = Box::new(self.parse_statement());
+
+        ASTNode::While {
+            condition: expr,
+            statement: stat,
+        }
     }
 
-    fn parse_assign(&mut self) {
+    fn parse_assign(&mut self) -> ASTNode {
         let mut name: String = String::new();
         let mut props: Properties;
         let mut tipe: u8;
@@ -235,9 +303,11 @@ impl Parser {
             // TODO: better error reporting
             panic!("Type mismatch in assignment.");
         }
+
+        todo!()
     }
 
-    fn parse_vardef(&mut self) {
+    fn parse_vardef(&mut self) -> ASTNode {
         let mut id: String = String::new(); 
         let mut tipe: u8 = NONE;
 
@@ -262,9 +332,10 @@ impl Parser {
             }
         }
 
+        todo!()
     }
 
-    fn parse_index(&mut self) {
+    fn parse_index(&mut self) -> ASTNode {
         let mut index_type: u8 = NONE;
         self.expect(Token::Lbrack);
 
@@ -276,9 +347,11 @@ impl Parser {
         }
 
         self.expect(Token::Rbrack);
+    
+        ASTNode::Value{val: Value::String("index".into())}
     }
 
-    fn parse_call(&mut self) {
+    fn parse_call(&mut self) -> ASTNode {
         let mut id: String = String::new();
         self.expect_identifier(&mut id);
 
@@ -293,11 +366,17 @@ impl Parser {
             panic!("'{}' is not a procedure", id);
         }
 
-        self.parse_arglist(props, id);
+        let args: Vec<Box<ASTNode>> = self.parse_arglist(props, id.clone());
+
+        ASTNode::Call {
+            name: id,
+            args: args,
+        }
     }
 
-    fn parse_read(&mut self) {
+    fn parse_read(&mut self) -> ASTNode {
         let mut id: String = String::new();
+        let output: ASTNode;
 
         self.expect(Token::Read);
         self.expect(Token::Lpar);
@@ -312,27 +391,32 @@ impl Parser {
                 // TODO: proper error reporting
                 panic!("Not an array!");
             }
-            self.parse_index();
-        
+            let idx: ASTNode = self.parse_index();
+            output = ASTNode::Read { name: id, maybe_index: Some(Box::new(idx)) };
         } else {
             if props.tipe & ARRAY != 0 {
                 // TODO: better error reporting
                 panic!("Index array before reading input");
             }
             // TODO: 'get' variable with id 
+            output = ASTNode::Read { name: id, maybe_index: None };
         }
 
         self.expect(Token::Rpar);
+
+        output
     }
 
-    fn parse_print(&mut self) {
+    fn parse_print(&mut self) -> ASTNode {
         let mut expr_type: u8 = NONE;
+        let mut items: Vec<Box<ASTNode>> = vec![];
 
         self.expect(Token::Print);
         self.expect(Token::Lpar);
 
         loop {
             self.parse_expr(&mut expr_type);
+            items.push(Box::new(ASTNode::Value{ val: Value::Integer(69) }));
 
             if self.current().0 != Token::Concat {
                 break;
@@ -341,9 +425,13 @@ impl Parser {
         }
 
         self.expect(Token::Rpar);
+
+        ASTNode::Print {
+            items,
+        }
     }
 
-    fn parse_return(&mut self) {
+    fn parse_return(&mut self) -> ASTNode {
         let mut expr_type: u8 = NONE;
 
         self.expect(Token::Return);
@@ -357,8 +445,10 @@ impl Parser {
 
         } else if self.current_ret_type != NONE {
             // TODO: Proper error reporting
-            panic!("ERROR: return statement missing an expression.")
+            panic!("ERROR: return statement missing an expression.");
         }
+
+        ASTNode::Return { expr: Some( Box::new(ASTNode::Value{ val: Value::Integer(69) })) }
     }
 
     fn parse_expr(&mut self, parent_type: &mut u8) {
@@ -525,13 +615,16 @@ impl Parser {
     }
 
 
-    fn parse_arglist(&mut self, props: Properties, id: String) {
+    fn parse_arglist(&mut self, props: Properties, id: String) -> Vec<Box<ASTNode>> {
+        let mut output: Vec<Box<ASTNode>> = vec![];
         let mut i: usize = 0;
         self.expect(Token::Lpar);
 
         if self.current().0.start_expression() {
             let mut expr_type: u8 = NONE;
             self.parse_expr(&mut expr_type);
+            output.push(Box::new(ASTNode::Value{val: Value::String("argument".into())}));
+
             if i + 1 > props.params.len() {
                 // TODO: proper error reporting
                 panic!("Too many arguments for {}", id);
@@ -547,6 +640,7 @@ impl Parser {
                 let mut expr_type: u8 = NONE;
                 self.next_token();
                 self.parse_expr(&mut expr_type);
+                output.push(Box::new(ASTNode::Value{val: Value::String("argument".into())}));
                 if i + 1 > props.params.len() {
                     // TODO: proper error reporting
                     panic!("Too many arguments for {}", id);
@@ -563,6 +657,8 @@ impl Parser {
         }
 
         self.expect(Token::Rpar);
+
+        output
     }
 
 

@@ -14,6 +14,8 @@ use error::*;
 
 mod properties;
 
+mod ast;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
