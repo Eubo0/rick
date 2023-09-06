@@ -59,7 +59,7 @@ pub enum ASTNode {
         op: Token,
         value: Box<ASTNode>,
     },
-    BinaryOP {
+    BinaryOp {
         lhs: Box<ASTNode>,
         op: Token,
         rhs: Box<ASTNode>,
@@ -68,8 +68,11 @@ pub enum ASTNode {
         name: String,
         offset: u32,
     },
-    IndexArray {
-        name: String,
+    GetIndex {
+        offset: u32,
+        idx: Box<ASTNode>, // expr node
+    },
+    SetIndex {
         offset: u32,
         idx: Box<ASTNode>,
     },
