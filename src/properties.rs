@@ -23,7 +23,7 @@ pub const FUNC: u8 = 32;
 #[derive(Debug, Clone)]
 pub struct Properties {
     pub tipe: u8,
-    pub offset: i32,
+    pub offset: Option<u32>,
 
     pub params: Vec<(String, u8)>,
 }
@@ -83,8 +83,8 @@ pub fn is_numeric_type(t: u8) -> bool {
 impl fmt::Display for Properties {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), std::fmt::Error> {
 
-        if self.offset != -1 {
-            write!(f, "@{} ", self.offset)?;
+        if self.offset.is_some() {
+            write!(f, "@{} ", self.offset.unwrap())?;
         } else {
             write!(f, "@_ ")?;
         }
