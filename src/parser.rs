@@ -4,6 +4,7 @@ use crate::{error, error::*};
 use crate::token::*;
 use crate::{properties::*};
 use crate::ast::*;
+use crate::value::Value;
 
 pub struct Parser {
     tokens: Vec<(Token, (u32, u32))>,
@@ -31,10 +32,12 @@ impl Parser {
     // XXX: This is a 2-pass "compiler"
     // I don't want to forward declare things.
     // I'm not as good at language design as His Worshipfulness.
-    pub fn parse_tok_stream(&mut self) {
+    pub fn parse_tok_stream(&mut self) -> ASTNode {
         self.parse_func_signatures();   // Pass 1
         self.idx = 0;
-        self.parse_program();           // Pass 2
+        let root: ASTNode = self.parse_program();   // Pass 2
+
+        root
     }
 
     fn parse_func_signatures(&mut self) {
@@ -47,7 +50,7 @@ impl Parser {
         }
     }
 
-    fn parse_program(&mut self) {
+    fn parse_program(&mut self) -> ASTNode {
         let mut top_level: Vec<Box<ASTNode>> = vec![];
 
         while self.current().0 != Token::Eof {
@@ -63,7 +66,7 @@ impl Parser {
 
         let t: ASTNode = ASTNode::Toplevel{ funcdefs: top_level };
 
-        println!("{:#?}", t);
+        t
     }
 
     fn parse_subdef(&mut self) -> ASTNode {

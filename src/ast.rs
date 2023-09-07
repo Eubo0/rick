@@ -1,4 +1,5 @@
 use crate::token::*;
+use crate::value::Value;
 
 #[derive(Debug, Clone)]
 pub enum ASTNode {
@@ -79,12 +80,4 @@ pub enum ASTNode {
     Value {
         val: Value,
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum Value {
-    String(String),
-    Boolean(bool),
-    Integer(i32),
-    Float(f32),
 }

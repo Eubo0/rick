@@ -15,6 +15,12 @@ use error::*;
 mod properties;
 
 mod ast;
+use ast::*;
+
+mod value;
+
+mod walker;
+use walker::*;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -34,5 +40,13 @@ fn main() {
 
     let mut parser: Parser = Parser::new(tokens);
 
-    parser.parse_tok_stream();
+    let root_node: ASTNode = parser.parse_tok_stream();
+
+    let mut walker: Walker = Walker::new(args.clone(), root_node);
+
+    //println!("{:#?}", walker);
+
+    let exit_code = walker.walk();
+
+    std::process::exit(exit_code);
 }
