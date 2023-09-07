@@ -42,9 +42,7 @@ fn main() {
 
     let root_node: ASTNode = parser.parse_tok_stream();
 
-    let mut walker: Walker = Walker::new(args.clone(), root_node);
-
-    //println!("{:#?}", walker);
+    let mut walker: Walker = Walker::new(args, root_node);
 
     let exit_code = walker.walk();
 

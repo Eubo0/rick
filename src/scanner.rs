@@ -215,8 +215,6 @@ impl Scanner {
         self.next_char();
 
         while !self.is_eof() && self.ch() != '"' {
-            string.push(self.ch());
-
             if self.ch() == '\\' {
                 self.next_char();
 
@@ -224,8 +222,16 @@ impl Scanner {
                     set_col(*COLUMN_NUM.lock().unwrap());
                     report_err(RickError::IllegalEscapeCode(self.ch()));
                 } else {
-                    string.push(self.ch());
+                    match self.ch() {
+                        'n' => string.push('\n'),
+                        '\\' => string.push('\\'),
+                        't' => string.push('\t'),
+                        '"' => string.push('"'),
+                        _ => panic!("Unreachable"),
+                    }
                 }
+            } else {
+                string.push(self.ch());
             }
 
             self.next_char();

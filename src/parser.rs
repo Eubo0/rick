@@ -450,11 +450,12 @@ impl Parser {
 
     fn parse_return(&mut self) -> ASTNode {
         let mut expr_type: u8 = NONE;
+        let mut ret_expr: Option<Box<ASTNode>> = None;
 
         self.expect(Token::Return);
 
         if self.current().0.start_expression() {
-            self.parse_expr(&mut expr_type);
+            ret_expr = Some(Box::new(self.parse_expr(&mut expr_type)));
             if expr_type != self.current_ret_type {
                 // TODO: Proper error reporting
                 panic!("ERROR: incorrect type for return expression.");
@@ -465,7 +466,7 @@ impl Parser {
             panic!("ERROR: return statement missing an expression.");
         }
 
-        ASTNode::Return { expr: Some( Box::new(ASTNode::Value{ val: Value::Integer(69) })) }
+        ASTNode::Return{ expr: ret_expr }
     }
 
     fn parse_expr(&mut self, parent_type: &mut u8) -> ASTNode {
