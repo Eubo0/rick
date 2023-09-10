@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::*;
 use crate::value::*;
+use crate::token::Token;
 
 #[derive(Debug, Clone)]
 pub struct Walker {
@@ -66,11 +67,18 @@ impl Walker {
     fn visit_node(&mut self, node: Box<ASTNode>) -> bool {
         match *node {
             ASTNode::Block { statements } => {
+                // For "de-allocating" if there are any vardefs in statements
+                let idx: usize = self.local_variables.len();
+                let initial_size: usize = self.local_variables[idx - 1].len();
+
                 for statement in statements {
                     if self.visit_node(statement) {
+                        self.local_variables[idx - 1].truncate(initial_size);
                         return true;
                     }
                 }
+
+                self.local_variables[idx - 1].truncate(initial_size);
             },
             ASTNode::VarDef { tipe: _, names } => {
                 let len: usize = self.local_variables.len();
@@ -78,6 +86,68 @@ impl Walker {
                     self.local_variables[len - 1].push(Value::None);
                 }
             },
+            ASTNode::Call { name, args } => {
+                let mut new_scope: Vec<Value> = vec![];
+
+                for arg in args {
+                    self.visit_node(arg);
+                    
+                    new_scope.push(self.val_stack.pop().unwrap());
+                }
+                self.local_variables.push(new_scope);
+
+                let (_, body) = self.top_level.get(&name).unwrap();
+                self.visit_node(body.clone());
+
+                self.local_variables.pop();
+            },
+            ASTNode::Let { offset, index, is_array, rhs } => {
+                self.visit_node(rhs);
+
+                if is_array {
+                    let cap: i32 = self.val_stack.pop().unwrap().force_int();
+                    let mut arr: Vec<Value> = Vec::with_capacity(cap as usize);
+                    for i in 0..(cap as u32) {
+                        arr.push(Value::None);
+                    }
+                    
+                    let idx: usize = self.local_variables.len();
+                    self.local_variables[idx - 1][offset as usize] = Value::Array(arr);
+                } else {
+                    if index.is_some() {
+                        self.visit_node(index.unwrap());
+                        let idx: i32 = self.val_stack.pop().unwrap().force_int();
+                        let j: usize = self.local_variables.len();
+                        let arr: Value = self.local_variables[j - 1][offset as usize].clone();
+                        if let Value::Array(mut inner) = arr {
+                            inner[idx as usize] = self.val_stack.pop().unwrap();
+                            self.local_variables[j - 1][offset as usize] = Value::Array(inner);
+                        } else {
+                            panic!("Typechecking fail");
+                        }
+                    } else {
+                        let idx = self.local_variables.len();
+                        let val = self.val_stack.pop().unwrap();
+                        self.local_variables[idx - 1][offset as usize] = val;
+                    }
+                }
+            },
+            ASTNode::If { branches, else_case } => {
+                for (cond, body) in branches {
+                    self.visit_node(cond);
+
+                    if self.val_stack.pop().unwrap().is_truthy() {
+                        if self.visit_node(body) {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    }
+                }
+                if else_case.is_some() {
+                    return self.visit_node(else_case.unwrap());
+                }
+            },  
             ASTNode::While { condition, statement } => {
                 let mut res: bool;
 
@@ -108,6 +178,81 @@ impl Walker {
                 let len: usize = self.local_variables.len();
                 let val = self.local_variables[len - 1][offset as usize].clone();
                 self.val_stack.push(val);
+            },
+            ASTNode::GetIndex { offset, idx } => {
+                let len = self.local_variables.len();
+                let arr = self.local_variables[len - 1][offset as usize].clone();
+
+                self.visit_node(idx);
+
+                let true_idx: usize = self.val_stack.pop().unwrap().force_int() as usize;
+                
+                if let Value::Array(inner) = arr {
+                    self.val_stack.push(inner[true_idx].clone());
+                } else {
+                    panic!("Somehow indexed a non-array");
+                }
+            },
+            // TODO: BinaryOp looks messy
+            ASTNode::BinaryOp { lhs, op, rhs } => {
+                self.visit_node(lhs);
+                self.visit_node(rhs);
+                
+                let rval = self.val_stack.pop().unwrap();
+                let lval = self.val_stack.pop().unwrap();
+
+                match op {
+                    Token::Add => {
+                        self.val_stack.push(lval + rval);
+                    },
+                    Token::Sub => {
+                        self.val_stack.push(lval - rval);
+                    },
+                    Token::Mul => {
+                        self.val_stack.push(lval * rval);
+                    },
+                    Token::Div => {
+                        self.val_stack.push(lval / rval);
+                    },
+                    Token::Mod => {
+                        self.val_stack.push(lval % rval);
+                    },
+                    Token::Gt => {
+                        self.val_stack.push(Value::Boolean(lval.is_gt(&rval)));
+                    },
+                    Token::Gte => {
+                        self.val_stack.push(Value::Boolean(lval.is_gte(&rval)));
+                    },
+                    Token::Lt => {
+                        self.val_stack.push(Value::Boolean(lval.is_lt(&rval)));
+                    },
+                    Token::Lte => {
+                        self.val_stack.push(Value::Boolean(lval.is_lte(&rval)));
+                    },
+                    Token::Eq => {
+                        self.val_stack.push(Value::Boolean(lval.is_eq(&rval)));
+                    },
+                    Token::Neq => {
+                        self.val_stack.push(Value::Boolean(lval.is_neq(&rval)));
+                    },
+                    Token::Pow => {
+                        self.val_stack.push(lval.pow_value(&rval));
+                    },
+                    _ => {
+                        unimplemented!("Binary operator '{}'", op);
+                    }
+                }
+            },
+            ASTNode::UnaryOp { op, value } => {
+                self.visit_node(value);
+                let val = self.val_stack.pop().unwrap();
+
+                match &op {
+                    Token::Sub => {
+                        self.val_stack.push(-val);
+                    },
+                    _ => panic!("Not a unary op '{}'", op),
+                }
             },
             ASTNode::Value { val } => {
                 self.val_stack.push(val);

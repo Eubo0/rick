@@ -86,7 +86,7 @@ impl Token {
     }
 
     pub fn is_multiplicative_op(&self) -> bool {
-        matches!(self, Token::Mul | Token::Div | Token::And)
+        matches!(self, Token::Mul | Token::Div | Token::And | Token::Mod)
     }
 
     pub fn is_exponent_op(&self) -> bool {

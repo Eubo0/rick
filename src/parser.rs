@@ -191,9 +191,9 @@ impl Parser {
 
     fn parse_if(&mut self) -> ASTNode {
         let cond: Box<ASTNode>;
-        let first_stat: Box<ASTNode>;
+        let stat: Box<ASTNode>;
 
-        let mut elif_branches: Vec<(Box<ASTNode>, Box<ASTNode>)> = vec![];
+        let mut branches: Vec<(Box<ASTNode>, Box<ASTNode>)> = vec![];
         let mut else_case: Option<Box<ASTNode>> = None;
 
         let mut cond_type: u8 = NONE;
@@ -206,7 +206,8 @@ impl Parser {
             panic!("Expected boolean, found {} for if condition", type_string(cond_type));
         }
 
-        first_stat = Box::new(self.parse_statement());
+        stat = Box::new(self.parse_statement());
+        branches.push((cond, stat));
 
         while self.current().0 == Token::Elif {
             let else_cond: Box<ASTNode>;
@@ -220,7 +221,7 @@ impl Parser {
             }
             else_stat = Box::new(self.parse_statement());
 
-            elif_branches.push((else_cond, else_stat));
+            branches.push((else_cond, else_stat));
         }
 
         if self.current().0 == Token::Else {
@@ -229,9 +230,7 @@ impl Parser {
         }
 
         ASTNode::If {
-            first_condition: cond,
-            first_statement: first_stat,
-            elif_branches,
+            branches,
             else_case,
         }
     }
@@ -309,7 +308,7 @@ impl Parser {
         }
 
         ASTNode::Let {
-            name,
+            offset: props.offset.unwrap(),
             index,
             is_array,
             rhs: right_expr,
@@ -508,7 +507,12 @@ impl Parser {
         let mut output: ASTNode;
         let mut rhs: u8 = NONE;
 
-        output = self.parse_term(parent_type);
+        if self.current().0 == Token::Sub {
+            self.next_token();
+            output = ASTNode::UnaryOp { op: Token::Sub, value: Box::new(self.parse_term(parent_type)) };
+        } else {
+            output = self.parse_term(parent_type);
+        }
 
         if self.current().0 == Token::Or {
             if *parent_type != BOOLEAN {
@@ -703,7 +707,7 @@ impl Parser {
 
             _ => {
                 // TODO: proper error reporting
-                panic!("ERROR: expected valid expression base!");
+                panic!("ERROR: expected valid expression base: '{:#?}', {:#?}", self.current().0, self.current().1);
             }
         }
     }
@@ -716,8 +720,8 @@ impl Parser {
 
         if self.current().0.start_expression() {
             let mut expr_type: u8 = NONE;
-            self.parse_expr(&mut expr_type);
-            output.push(Box::new(ASTNode::Value{val: Value::String("argument".into())}));
+            
+            output.push(Box::new(self.parse_expr(&mut expr_type)));
 
             if i + 1 > props.params.len() {
                 // TODO: proper error reporting
@@ -733,8 +737,7 @@ impl Parser {
             while self.current().0 == Token::Comma {
                 let mut expr_type: u8 = NONE;
                 self.next_token();
-                self.parse_expr(&mut expr_type);
-                output.push(Box::new(ASTNode::Value{val: Value::String("argument".into())}));
+                output.push(Box::new(self.parse_expr(&mut expr_type)));
                 if i + 1 > props.params.len() {
                     // TODO: proper error reporting
                     panic!("Too many arguments for {}", id);
@@ -743,10 +746,12 @@ impl Parser {
                     // TODO: proper error reporting
                     panic!("Type mismatch for argument {} of {}", i, id);
                 }
+
+                i += 1;
             }
         }
 
-        if i < props.params.len() {
+        if i != props.params.len() {
             panic!("Too few arguments to {}", id);
         }
 

@@ -17,11 +17,8 @@ pub enum ASTNode {
         statements: Vec<Box<ASTNode>>,
     },
     If {
-        first_condition: Box<ASTNode>,
-        first_statement: Box<ASTNode>,
-
         // branches.0 = conditions, branches.1 = statement
-        elif_branches: Vec<(Box<ASTNode>, Box<ASTNode>)>,
+        branches: Vec<(Box<ASTNode>, Box<ASTNode>)>,
 
         else_case: Option<Box<ASTNode>>,
     },
@@ -39,7 +36,7 @@ pub enum ASTNode {
         args: Vec<Box<ASTNode>>,
     },
     Let {
-        name: String,
+        offset: u32,
         index: Option<Box<ASTNode>>,
 
         // does 'array' preceed the assignment expression
