@@ -44,8 +44,9 @@ pub enum ASTNode {
         rhs: Box<ASTNode>,
     },
     Read {
-        name: String,
-        maybe_index: Option<Box<ASTNode>>
+        offset: u32,
+        tipe: u8,
+        index: Option<Box<ASTNode>>,
     },
     Print {
         items: Vec<Box<ASTNode>>,

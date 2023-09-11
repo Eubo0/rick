@@ -1,6 +1,8 @@
 use std::fmt;
 use std::cmp::Ordering;
 
+use crate::properties::*;
+
 #[derive(Debug, Clone)]
 pub enum Value {
     String(String),
@@ -141,6 +143,27 @@ impl Value {
             Value::Integer(i) => *i,
             _ => panic!("Invalid index :("),
         }
+    }
+}
+
+pub fn string_to_val(tipe: u8, string: String) -> Value {
+    if tipe & STRING != 0 {
+        Value::String(string)
+    
+    } else if tipe & BOOLEAN != 0 {
+        let b: bool = string.parse().unwrap();
+        Value::Boolean(b)
+
+    } else if tipe & INTEGER != 0 {
+        let i: i32 = string.parse().unwrap();
+        Value::Integer(i)
+
+    } else if tipe & FLOAT != 0 {
+        let f: f32 = string.parse().unwrap();
+        Value::Float(f)
+
+    } else {
+        panic!("Not able to coerce input to a specific value");
     }
 }
 

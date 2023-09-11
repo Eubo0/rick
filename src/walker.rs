@@ -1,3 +1,4 @@
+use std::io;
 use std::collections::HashMap;
 
 use crate::ast::*;
@@ -130,6 +131,32 @@ impl Walker {
                         let val = self.val_stack.pop().unwrap();
                         self.local_variables[idx - 1][offset as usize] = val;
                     }
+                }
+            },
+            ASTNode::Read { offset, tipe, index } => {
+
+                let idx: usize = self.local_variables.len();
+                let val: Value = self.local_variables[idx - 1][offset as usize].clone();
+                
+                let mut buffer: String = String::new();
+                let stdin = io::stdin();
+                stdin.read_line(&mut buffer).expect("Read failed");
+                buffer = buffer.trim().to_string();
+
+                let val_to_store: Value = string_to_val(tipe, buffer);
+
+                if index.is_some() {
+                    self.visit_node(index.unwrap());
+
+                    if let Value::Array(mut inner) = val {
+                        let store_idx: usize = self.val_stack.pop().unwrap().force_int() as usize;
+                        inner[store_idx] = val_to_store;
+                        self.local_variables[idx - 1][offset as usize] = Value::Array(inner);
+                    } else {
+                        panic!("Typecheck fail! Should be an array...");
+                    }
+                } else {
+                    self.local_variables[idx - 1][offset as usize] = val_to_store;
                 }
             },
             ASTNode::If { branches, else_case } => {

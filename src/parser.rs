@@ -399,7 +399,9 @@ impl Parser {
         self.expect_identifier(&mut id);
 
         // TODO: better error reporting
-        let props = self.local_table.get(&id).expect("Variable doesnt exist!");
+        let props: &Properties = self.local_table.get(&id).expect("Variable doesnt exist!");
+        let tipe: u8 = props.tipe.clone();
+        let offset: u32 = props.offset.expect("Must read into a variable");
 
         if self.current().0 == Token::Lbrack {
             if props.tipe & ARRAY == 0 {
@@ -407,14 +409,14 @@ impl Parser {
                 panic!("Not an array!");
             }
             let idx: ASTNode = self.parse_index();
-            output = ASTNode::Read { name: id, maybe_index: Some(Box::new(idx)) };
+            output = ASTNode::Read { offset, tipe, index: Some(Box::new(idx)) };
         } else {
             if props.tipe & ARRAY != 0 {
                 // TODO: better error reporting
                 panic!("Index array before reading input");
             }
             // TODO: 'get' variable with id 
-            output = ASTNode::Read { name: id, maybe_index: None };
+            output = ASTNode::Read { offset, tipe, index: None };
         }
 
         self.expect(Token::Rpar);
