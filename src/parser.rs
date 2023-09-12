@@ -300,12 +300,16 @@ impl Parser {
             rhs = simp_type | ARRAY;
         } else {
             right_expr = Box::new(self.parse_expr(&mut rhs));
+            
+            if rhs != tipe {
+                // TODO: better error reporting
+                dbg!(type_string(rhs));
+                dbg!(type_string(tipe));
+                panic!("Type mismatch in assignment.");
+            }
         }
 
-        if rhs != tipe {
-            // TODO: better error reporting
-            panic!("Type mismatch in assignment.");
-        }
+        
 
         ASTNode::Let {
             offset: props.offset.unwrap(),
