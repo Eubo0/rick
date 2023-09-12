@@ -23,7 +23,10 @@ pub struct Walker {
 impl Walker {
     pub fn new(args: Vec<String>, top_level: ASTNode) -> Walker {
         let converted_args: Vec<Value>;
+        let arg_count: i32;
+
         converted_args = args.iter().map(|v| Value::String(v.clone())).collect();
+        arg_count = converted_args.len() as i32;
 
         let mut symboltable: HashMap<String, (u32, Box<ASTNode>)> = HashMap::new();
 
@@ -41,7 +44,7 @@ impl Walker {
 
         Walker {
             top_level: symboltable,
-            val_stack: vec![Value::Array(converted_args)],
+            val_stack: vec![Value::Integer(arg_count), Value::Array(converted_args)],
             local_variables: vec![vec![]],
         }
     }

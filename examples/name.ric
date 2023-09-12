@@ -1,0 +1,10 @@
+func main(integer arg_count, string array args) integer {
+    var string name;
+
+    print("What is your name?\n");
+    read(name);
+
+    print("Hello " <> name <> "\n");
+
+    return 0;
+}

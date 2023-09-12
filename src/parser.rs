@@ -309,8 +309,6 @@ impl Parser {
             }
         }
 
-        
-
         ASTNode::Let {
             offset: props.offset.unwrap(),
             index,

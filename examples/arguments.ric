@@ -1,0 +1,13 @@
+func main(integer arg_count, string array args) integer {
+    var integer i;
+
+    let i = 0;
+
+    while i < arg_count {
+        print(args[i] <> "\n");
+
+        let i = i + 1;
+    }
+
+    return 0;
+}
